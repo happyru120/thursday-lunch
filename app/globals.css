@@ -2,65 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: #F5F5F7;
   min-height: 100vh;
 }
 
-/* Custom scrollbar */
+/* Apple-style selection */
+::selection {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar - Apple style */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #667eea;
-  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* Confetti canvas */
-#confetti-canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1000;
+canvas {
+  display: block;
 }
 
-/* Emoji burst */
-.emoji-burst {
-  position: fixed;
-  pointer-events: none;
-  z-index: 999;
-  animation: floatUp 2s ease-out forwards;
+/* Button press effect */
+button:active {
+  transform: scale(0.98);
 }
 
-@keyframes floatUp {
-  0% {
-    opacity: 1;
-    transform: translateY(0) scale(1) rotate(0deg);
+/* Focus styles */
+button:focus-visible {
+  outline: 2px solid #007AFF;
+  outline-offset: 2px;
+}
+
+/* Glassmorphism support */
+@supports (backdrop-filter: blur(20px)) {
+  .glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
-  100% {
-    opacity: 0;
-    transform: translateY(-200px) scale(0.5) rotate(360deg);
-  }
-}
-
-/* Rainbow gradient animation */
-.rainbow-bg {
-  background: linear-gradient(270deg, #ffd700, #ffb347, #ff6b6b, #ffd700);
-  background-size: 400% 400%;
-  animation: rainbow 2s ease infinite;
-}
-
-@keyframes rainbow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
