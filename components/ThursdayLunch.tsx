@@ -56,6 +56,7 @@ const calculateBudget = (teamSize: number, isWinner: boolean, totalPeople: numbe
 export default function ThursdayLunch() {
   const [step, setStep] = useState<'setup' | 'ladder' | 'result'>('setup')
   const [absentMembers, setAbsentMembers] = useState<Set<string>>(new Set())
+  const [targetRank, setTargetRank] = useState<number>(1)
   const [results, setResults] = useState<TeamResult[]>([])
   const [copied, setCopied] = useState(false)
   const [bridges, setBridges] = useState<Bridge[]>([])
@@ -321,10 +322,10 @@ export default function ThursdayLunch() {
           nameIndex += size
         })
 
-        // 예산 계산
-        const winnerTeam = teamResults.find((t) => t.rank === 1)!
+        // 예산 계산 - targetRank에 해당하는 팀이 당첨!
+        const winnerTeam = teamResults.find((t) => t.rank === targetRank)!
         teamResults.forEach((team) => {
-          const isWinner = team.rank === 1
+          const isWinner = team.rank === targetRank
           team.budget = calculateBudget(team.size, isWinner, selectedCount, winnerTeam.size)
           team.perPerson = isWinner ? Math.round(team.budget / team.size) : 10000
         })
@@ -398,15 +399,17 @@ export default function ThursdayLunch() {
 
   // 슬랙 메시지
   const generateSlackMessage = () => {
-    const winnerTeam = results.find((t) => t.rank === 1)!
+    const winnerTeam = results.find((t) => t.rank === targetRank)!
     const today = new Date()
     const dateStr = `${today.getMonth() + 1}/${today.getDate()}`
+    const targetLabel = targetRank === 1 ? '1등' : targetRank === teams.length ? '꼴등' : `${targetRank}등`
 
     let message = `🍽️ *${dateStr} 목요점심 결과*\n\n`
     message += `👥 오늘 인원: ${selectedCount}명\n`
-    message += `📋 팀 구성: ${teams.map((t) => t + '명').join(' / ')}\n\n`
+    message += `📋 팀 구성: ${teams.map((t) => t + '명').join(' / ')}\n`
+    message += `🎯 목표: ${targetLabel}\n\n`
     message += `━━━━━━━━━━━━━━━\n\n`
-    message += `🎉 *1등: ${winnerTeam.teamNum}팀*\n`
+    message += `🎉 *당첨: ${winnerTeam.teamNum}팀* (${targetLabel} 달성!)\n`
     message += `   ${winnerTeam.members.join(', ')}\n`
     message += `   💰 *${winnerTeam.budget.toLocaleString()}원* (인당 ${winnerTeam.perPerson.toLocaleString()}원)\n\n`
 
@@ -429,12 +432,14 @@ export default function ThursdayLunch() {
   const resetGame = () => {
     setStep('setup')
     setAbsentMembers(new Set())
+    setTargetRank(1)
     setResults([])
     setBridges([])
     setAnimationComplete(false)
   }
 
-  const winnerTeam = results.find((t) => t.rank === 1)
+  const winnerTeam = results.find((t) => t.rank === targetRank)
+  const targetLabel = targetRank === 1 ? '1등' : targetRank === teams.length ? '꼴등' : `${targetRank}등`
 
   return (
     <>
@@ -453,7 +458,10 @@ export default function ThursdayLunch() {
 
               {/* 결석자 선택 */}
               <div className="mb-8">
-                <h2 className="text-sm font-medium text-[#86868B] mb-4 uppercase tracking-wide">오늘 출근자</h2>
+                <div className="flex items-baseline gap-2 mb-4">
+                  <h2 className="text-sm font-medium text-[#86868B] uppercase tracking-wide">오늘 출근자</h2>
+                  <span className="text-xs text-[#86868B]">안 온 사람 터치해서 빼기</span>
+                </div>
                 
                 <div className="grid grid-cols-2 gap-2">
                   {ALL_MEMBERS.map((name) => {
@@ -474,6 +482,38 @@ export default function ThursdayLunch() {
                   })}
                 </div>
               </div>
+
+              {/* 목표 등수 선택 */}
+              {teams.length > 0 && (
+                <div className="mb-8">
+                  <div className="flex items-baseline gap-2 mb-4">
+                    <h2 className="text-sm font-medium text-[#86868B] uppercase tracking-wide">오늘의 목표</h2>
+                    <span className="text-xs text-[#86868B]">몇 등 할까요?</span>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {teams.map((_, i) => {
+                      const rank = i + 1
+                      const isSelected = targetRank === rank
+                      const emoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '🏅'
+                      const label = rank === 1 ? '1등' : rank === teams.length ? '꼴등' : `${rank}등`
+                      return (
+                        <button
+                          key={rank}
+                          onClick={() => setTargetRank(rank)}
+                          className={`flex-1 py-3 px-2 rounded-2xl font-medium text-sm transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-[#007AFF] text-white shadow-md'
+                              : 'bg-[#F5F5F7] text-[#86868B]'
+                          }`}
+                        >
+                          {emoji} {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* 출근 인원 */}
               <div className="bg-[#F5F5F7] rounded-2xl p-4 mb-6">
@@ -525,10 +565,10 @@ export default function ThursdayLunch() {
           {/* 결과 화면 */}
           {step === 'result' && winnerTeam && (
             <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-lg border border-white/20">
-              {/* 1등 발표 */}
+              {/* 당첨 발표 */}
               <div className="bg-gradient-to-br from-[#FFD60A] to-[#FF9F0A] rounded-2xl p-6 mb-6 text-center">
                 <div className="text-4xl mb-2">🏆</div>
-                <p className="text-sm font-medium text-[#1D1D1F]/60 mb-1">1등</p>
+                <p className="text-sm font-medium text-[#1D1D1F]/60 mb-1">{targetLabel} 당첨!</p>
                 <h2 className="text-2xl font-bold text-[#1D1D1F]">
                   {winnerTeam.teamNum}팀
                 </h2>
@@ -542,16 +582,18 @@ export default function ThursdayLunch() {
               {/* 나머지 팀 */}
               <div className="space-y-2 mb-6">
                 {[...results]
-                  .filter(t => t.rank !== 1)
+                  .filter(t => t.rank !== targetRank)
                   .sort((a, b) => a.rank - b.rank)
-                  .map((team) => (
+                  .map((team) => {
+                    const rankEmoji = team.rank === 1 ? '🥇' : team.rank === 2 ? '🥈' : team.rank === 3 ? '🥉' : '🏅'
+                    return (
                     <div
                       key={team.teamNum}
                       className="flex justify-between items-center p-4 bg-[#F5F5F7] rounded-2xl"
                     >
                       <div>
                         <h3 className="font-semibold text-[#1D1D1F]">
-                          {team.rank === 2 ? '🥈' : '🥉'} {team.teamNum}팀
+                          {rankEmoji} {team.teamNum}팀
                         </h3>
                         <p className="text-[#86868B] text-sm">{team.members.join(', ')}</p>
                       </div>
@@ -562,7 +604,7 @@ export default function ThursdayLunch() {
                         <p className="text-[#86868B] text-xs">인당 {team.perPerson.toLocaleString()}원</p>
                       </div>
                     </div>
-                  ))}
+                  )})}
               </div>
 
               {/* 슬랙 공유 */}
