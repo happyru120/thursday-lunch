@@ -337,20 +337,22 @@ export default function ThursdayLunch() {
     const centerY = height / 2
     const radius = Math.min(width, height) / 2 - 40
     const holeRadius = 25
-    const marbleRadius = 18
+    const marbleRadius = 22
 
     // 구멍 위치 (하단)
     const holeAngle = Math.PI / 2
     const holeX = centerX + Math.cos(holeAngle) * (radius - holeRadius)
     const holeY = centerY + Math.sin(holeAngle) * (radius - holeRadius)
 
-    // 마블 초기화
-    const marbles: Marble[] = presentMembers.map((name, i) => {
-      const angle = (i / presentMembers.length) * Math.PI * 2 - Math.PI / 2
+    const teamCount = teams.length
+
+    // 팀별 마블 초기화
+    const marbles: Marble[] = teams.map((size, i) => {
+      const angle = (i / teamCount) * Math.PI * 2 - Math.PI / 2
       const dist = radius * 0.6
       return {
         id: i,
-        name,
+        name: `${i + 1}팀`,
         x: centerX + Math.cos(angle) * dist,
         y: centerY + Math.sin(angle) * dist,
         vx: (Math.random() - 0.5) * 2,
@@ -365,7 +367,6 @@ export default function ThursdayLunch() {
     let rotationAngle = 0
     const rotationSpeed = 0.02
     const eliminations: string[] = []
-    let lastWinner = ''
 
     const draw = () => {
       ctx.clearRect(0, 0, width, height)
@@ -434,12 +435,12 @@ export default function ThursdayLunch() {
         ctx.fillStyle = 'rgba(255,255,255,0.4)'
         ctx.fill()
 
-        // 이름
+        // 팀 번호
         ctx.fillStyle = 'white'
-        ctx.font = 'bold 9px -apple-system'
+        ctx.font = 'bold 12px -apple-system'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(marble.name.slice(0, 2), marble.x, marble.y)
+        ctx.fillText(marble.name, marble.x, marble.y)
       })
 
       // 탈락자 표시
@@ -457,43 +458,29 @@ export default function ThursdayLunch() {
 
       // 원심력 시뮬레이션
       marbles.filter(m => !m.eliminated).forEach(marble => {
-        // 회전력
         const dx = marble.x - centerX
         const dy = marble.y - centerY
         const angle = Math.atan2(dy, dx)
         
-        // 원심력 (바깥으로)
         marble.vx += Math.cos(angle) * 0.15
         marble.vy += Math.sin(angle) * 0.15
-
-        // 접선 방향 힘 (회전)
         marble.vx += Math.cos(angle + Math.PI / 2) * 0.3
         marble.vy += Math.sin(angle + Math.PI / 2) * 0.3
-
-        // 랜덤 요동
         marble.vx += (Math.random() - 0.5) * 0.5
         marble.vy += (Math.random() - 0.5) * 0.5
-
-        // 마찰
         marble.vx *= 0.96
         marble.vy *= 0.96
-
-        // 이동
         marble.x += marble.vx
         marble.y += marble.vy
 
-        // 벽 충돌
         const distFromCenter = Math.sqrt(
           (marble.x - centerX) ** 2 + (marble.y - centerY) ** 2
         )
 
-        // 바깥 벽
         if (distFromCenter > radius - marbleRadius) {
           const angle = Math.atan2(marble.y - centerY, marble.x - centerX)
           marble.x = centerX + Math.cos(angle) * (radius - marbleRadius)
           marble.y = centerY + Math.sin(angle) * (radius - marbleRadius)
-          
-          // 반사
           const normalX = Math.cos(angle)
           const normalY = Math.sin(angle)
           const dot = marble.vx * normalX + marble.vy * normalY
@@ -501,12 +488,10 @@ export default function ThursdayLunch() {
           marble.vy -= 2 * dot * normalY * 0.7
         }
 
-        // 안쪽 벽
         if (distFromCenter < radius * 0.3 + marbleRadius) {
           const angle = Math.atan2(marble.y - centerY, marble.x - centerX)
           marble.x = centerX + Math.cos(angle) * (radius * 0.3 + marbleRadius)
           marble.y = centerY + Math.sin(angle) * (radius * 0.3 + marbleRadius)
-          
           const normalX = -Math.cos(angle)
           const normalY = -Math.sin(angle)
           const dot = marble.vx * normalX + marble.vy * normalY
@@ -514,7 +499,6 @@ export default function ThursdayLunch() {
           marble.vy -= 2 * dot * normalY * 0.7
         }
 
-        // 구멍 체크
         const distFromHole = Math.sqrt(
           (marble.x - holeX) ** 2 + (marble.y - holeY) ** 2
         )
@@ -562,32 +546,56 @@ export default function ThursdayLunch() {
       draw()
 
       const remaining = marbles.filter(m => !m.eliminated)
-      if (remaining.length === 1) {
-        lastWinner = remaining[0].name
-        setRouletteWinner(lastWinner)
-        setAnimationComplete(true)
+      if (remaining.length === 0) {
+        // 모두 탈락 - 결과 계산
         cancelAnimationFrame(animationIdRef.current)
-        
-        setTimeout(() => {
-          // 결과 생성
-          const teamResults: TeamResult[] = [{
-            teamNum: 1,
-            members: [lastWinner],
-            size: 1,
-            rank: 1,
-            budget: selectedCount * 12000,
-            perPerson: selectedCount * 12000
-          }]
-          setResults(teamResults)
-          setStep('result')
-          launchConfetti()
-        }, 1500)
+        finishRoulette(marbles, eliminations)
       } else {
         animationIdRef.current = requestAnimationFrame(animate)
       }
     }
 
     animationIdRef.current = requestAnimationFrame(animate)
+  }
+
+  const finishRoulette = (marbles: Marble[], eliminations: string[]) => {
+    // 탈락 순서의 역순이 등수 (먼저 탈락 = 꼴등, 마지막 탈락 = 1등)
+    const shuffledNames = shuffle(presentMembers)
+    const teamResults: TeamResult[] = []
+    let nameIndex = 0
+
+    teams.forEach((size, teamIndex) => {
+      const marble = marbles.find(m => m.id === teamIndex)!
+      // 탈락 순서 역순 = 등수 (마지막 탈락이 1등)
+      const rank = teams.length - marble.eliminatedOrder + 1
+      
+      teamResults.push({
+        teamNum: teamIndex + 1,
+        members: shuffledNames.slice(nameIndex, nameIndex + size),
+        size,
+        rank,
+        budget: 0,
+        perPerson: 0,
+      })
+      nameIndex += size
+    })
+
+    // 예산 계산
+    const winnerTeam = teamResults.find((t) => t.rank === targetRank)!
+    teamResults.forEach((team) => {
+      const isWinner = team.rank === targetRank
+      team.budget = calculateBudget(team.size, isWinner, selectedCount, winnerTeam.size)
+      team.perPerson = isWinner ? Math.round(team.budget / team.size) : 10000
+    })
+
+    setResults(teamResults)
+    setRouletteWinner(`${winnerTeam.teamNum}팀`)
+    setAnimationComplete(true)
+    
+    setTimeout(() => {
+      setStep('result')
+      launchConfetti()
+    }, 1000)
   }
 
   // ==================== 공통 ====================
@@ -647,27 +655,14 @@ export default function ThursdayLunch() {
   }, [])
 
   const generateSlackMessage = () => {
-    if (gameType === 'roulette') {
-      const today = new Date()
-      const dateStr = `${today.getMonth() + 1}/${today.getDate()}`
-      
-      let message = `🎱 *${dateStr} 목요점심 마블룰렛*\n\n`
-      message += `👥 참가자: ${presentMembers.join(', ')}\n\n`
-      message += `━━━━━━━━━━━━━━━\n\n`
-      message += `🏆 *당첨: ${rouletteWinner}*\n`
-      message += `   💰 *${(selectedCount * 12000).toLocaleString()}원*\n\n`
-      message += `📋 탈락 순서:\n`
-      message += `   ${eliminationOrder.join(' → ')}\n\n`
-      message += `맛점하세요! 🍜`
-      return message
-    }
-
     const winnerTeam = results.find((t) => t.rank === targetRank)!
     const today = new Date()
     const dateStr = `${today.getMonth() + 1}/${today.getDate()}`
     const targetLabel = targetRank === 1 ? '1등' : targetRank === teams.length ? '꼴등' : `${targetRank}등`
+    const gameEmoji = gameType === 'ladder' ? '🪜' : '🎱'
+    const gameName = gameType === 'ladder' ? '사다리타기' : '마블룰렛'
 
-    let message = `🪜 *${dateStr} 목요점심 사다리타기*\n\n`
+    let message = `${gameEmoji} *${dateStr} 목요점심 ${gameName}*\n\n`
     message += `👥 오늘 인원: ${selectedCount}명\n`
     message += `📋 팀 구성: ${teams.map((t) => t + '명').join(' / ')}\n`
     message += `🎯 목표: ${targetLabel}\n\n`
@@ -681,6 +676,10 @@ export default function ThursdayLunch() {
       message += `${team.teamNum}팀: ${team.members.join(', ')}\n`
       message += `   💸 ${team.budget.toLocaleString()}원 (인당 ${team.perPerson.toLocaleString()}원)\n\n`
     })
+
+    if (gameType === 'roulette' && eliminationOrder.length > 0) {
+      message += `📋 탈락 순서: ${eliminationOrder.join(' → ')}\n\n`
+    }
 
     message += `맛점하세요! 🍜`
     return message
@@ -776,8 +775,8 @@ export default function ThursdayLunch() {
                 </div>
               </div>
 
-              {/* 사다리: 목표 등수 선택 */}
-              {gameType === 'ladder' && teams.length > 0 && (
+              {/* 목표 등수 선택 */}
+              {teams.length > 0 && (
                 <div className="mb-8">
                   <div className="flex items-baseline gap-2 mb-4">
                     <h2 className="text-sm font-medium text-[#86868B] uppercase tracking-wide">오늘의 목표</h2>
@@ -814,7 +813,7 @@ export default function ThursdayLunch() {
                   <span className="text-[#86868B] text-sm">참여 인원</span>
                   <span className="text-2xl font-semibold text-[#1D1D1F]">{selectedCount}명</span>
                 </div>
-                {gameType === 'ladder' && teams.length > 0 && (
+                {teams.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-3">
                     {teams.map((t, i) => (
                       <span key={i} className="bg-white text-[#1D1D1F] px-3 py-1 rounded-full text-sm font-medium shadow-sm">
@@ -823,18 +822,15 @@ export default function ThursdayLunch() {
                     ))}
                   </div>
                 )}
-                {gameType === 'ladder' && teams.length === 0 && (
+                {teams.length === 0 && (
                   <p className="text-[#FF3B30] text-sm mt-2">6~15명이 필요해요</p>
-                )}
-                {gameType === 'roulette' && selectedCount < 2 && (
-                  <p className="text-[#FF3B30] text-sm mt-2">2명 이상이 필요해요</p>
                 )}
               </div>
 
               {/* 시작 버튼 */}
               <button
                 onClick={gameType === 'ladder' ? startLadder : startRoulette}
-                disabled={gameType === 'ladder' ? teams.length === 0 : selectedCount < 2}
+                disabled={teams.length === 0}
                 className="w-full py-4 bg-[#007AFF] text-white rounded-2xl font-semibold text-lg disabled:bg-[#D1D1D6] disabled:cursor-not-allowed transition-all duration-200 hover:bg-[#0056CC] active:scale-[0.98]"
               >
                 {gameType === 'ladder' ? '🪜 사다리 타기' : '🎱 마블 굴리기'}
@@ -880,61 +876,52 @@ export default function ThursdayLunch() {
           )}
 
           {/* 결과 화면 */}
-          {step === 'result' && (
+          {step === 'result' && winnerTeam && (
             <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-lg border border-white/20">
               {/* 당첨 발표 */}
               <div className="bg-gradient-to-br from-[#FFD60A] to-[#FF9F0A] rounded-2xl p-6 mb-6 text-center">
                 <div className="text-4xl mb-2">🏆</div>
                 <p className="text-sm font-medium text-[#1D1D1F]/60 mb-1">
-                  {gameType === 'roulette' ? '마블룰렛 당첨!' : `${targetLabel} 당첨!`}
+                  {targetLabel} 당첨!
                 </p>
                 <h2 className="text-2xl font-bold text-[#1D1D1F]">
-                  {gameType === 'roulette' ? rouletteWinner : `${winnerTeam?.teamNum}팀`}
+                  {winnerTeam.teamNum}팀
                 </h2>
-                {gameType === 'ladder' && winnerTeam && (
-                  <p className="text-[#1D1D1F]/80 mt-1">{winnerTeam.members.join(', ')}</p>
-                )}
+                <p className="text-[#1D1D1F]/80 mt-1">{winnerTeam.members.join(', ')}</p>
                 <p className="text-xl font-bold text-[#1D1D1F] mt-3">
-                  {gameType === 'roulette' 
-                    ? `${(selectedCount * 12000).toLocaleString()}원`
-                    : `${winnerTeam?.budget.toLocaleString()}원`
-                  }
+                  {winnerTeam.budget.toLocaleString()}원
                 </p>
-                {gameType === 'ladder' && winnerTeam && (
-                  <p className="text-sm text-[#1D1D1F]/60">인당 {winnerTeam.perPerson.toLocaleString()}원</p>
-                )}
+                <p className="text-sm text-[#1D1D1F]/60">인당 {winnerTeam.perPerson.toLocaleString()}원</p>
               </div>
 
-              {/* 사다리: 나머지 팀 */}
-              {gameType === 'ladder' && (
-                <div className="space-y-2 mb-6">
-                  {[...results]
-                    .filter(t => t.rank !== targetRank)
-                    .sort((a, b) => a.rank - b.rank)
-                    .map((team) => {
-                      const rankEmoji = team.rank === 1 ? '🥇' : team.rank === 2 ? '🥈' : team.rank === 3 ? '🥉' : '🏅'
-                      return (
-                        <div
-                          key={team.teamNum}
-                          className="flex justify-between items-center p-4 bg-[#F5F5F7] rounded-2xl"
-                        >
-                          <div>
-                            <h3 className="font-semibold text-[#1D1D1F]">
-                              {rankEmoji} {team.teamNum}팀
-                            </h3>
-                            <p className="text-[#86868B] text-sm">{team.members.join(', ')}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-[#1D1D1F]">
-                              {team.budget.toLocaleString()}원
-                            </p>
-                            <p className="text-[#86868B] text-xs">인당 {team.perPerson.toLocaleString()}원</p>
-                          </div>
+              {/* 나머지 팀 */}
+              <div className="space-y-2 mb-6">
+                {[...results]
+                  .filter(t => t.rank !== targetRank)
+                  .sort((a, b) => a.rank - b.rank)
+                  .map((team) => {
+                    const rankEmoji = team.rank === 1 ? '🥇' : team.rank === 2 ? '🥈' : team.rank === 3 ? '🥉' : '🏅'
+                    return (
+                      <div
+                        key={team.teamNum}
+                        className="flex justify-between items-center p-4 bg-[#F5F5F7] rounded-2xl"
+                      >
+                        <div>
+                          <h3 className="font-semibold text-[#1D1D1F]">
+                            {rankEmoji} {team.teamNum}팀
+                          </h3>
+                          <p className="text-[#86868B] text-sm">{team.members.join(', ')}</p>
                         </div>
-                      )
-                    })}
-                </div>
-              )}
+                        <div className="text-right">
+                          <p className="font-semibold text-[#1D1D1F]">
+                            {team.budget.toLocaleString()}원
+                          </p>
+                          <p className="text-[#86868B] text-xs">인당 {team.perPerson.toLocaleString()}원</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
 
               {/* 룰렛: 탈락 순서 */}
               {gameType === 'roulette' && eliminationOrder.length > 0 && (
