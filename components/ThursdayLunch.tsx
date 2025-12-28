@@ -73,7 +73,7 @@ export default function ThursdayLunch() {
   const startLadder = () => {
     const playerNames = names.map((n, i) => n || `${i + 1}번`)
     const shuffledNames = shuffle(playerNames)
-    const shuffledRanks = shuffle([...Array(teams.length).keys()])
+    const shuffledRanks = shuffle(Array.from({ length: teams.length }, (_, i) => i))
 
     const teamResults: TeamResult[] = []
     let nameIndex = 0
